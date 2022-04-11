@@ -59,6 +59,74 @@ class DatasetHandler:
             print("Data loading: {0}%".format(int(i / (self.num_frames * 2 - 1) * 100)), end="\r")
 
 
+class DidymosDatasetHandler:
+
+    def __init__(self):
+        # Define number of frames
+        self.num_frames = 21
+
+        # Set up paths
+        root_dir_path = os.path.dirname(os.path.realpath(__file__))
+        self.image_dir = os.path.join(root_dir_path, 'images/asteroid/Didymos')
+
+        # Set up data holders
+        self.images = []
+        pixSize = 1.0035e-5
+        f = 0.106/pixSize
+        p = 512
+        self.k = np.array([[f, 0, p],
+                           [0, f, p],
+                           [0, 0, 1]], dtype=np.float32)
+
+        # Read first frame
+        self.read_frame()
+        print("\r" + ' ' * 20 + "\r", end='')
+
+    def read_frame(self):
+        self._read_image()
+
+    def _read_image(self):
+        for i in range(1, self.num_frames + 1):
+            zeroes = "0" * 3
+            im_name = "{0}/IMG_PREPRO_{1}{2}.png".format(self.image_dir, zeroes, str(i+408))
+            self.images.append(cv2.imread(im_name, flags=0))
+            print("Data loading: {0}%".format(int((i + self.num_frames) / (self.num_frames * 2 - 1) * 100)), end="\r")
+
+
+class DawnDatasetHandler:
+
+    def __init__(self):
+        # Define number of frames
+        self.num_frames = 30
+
+        # Set up paths
+        root_dir_path = os.path.dirname(os.path.realpath(__file__))
+        self.image_dir = os.path.join(root_dir_path, 'images/asteroid/Vesta')
+
+        # Set up data holders
+        self.images = []
+        pixSize = 1.0035e-5
+        f = 0.106/pixSize
+        p = 512
+        self.k = np.array([[f, 0, p],
+                           [0, f, p],
+                           [0, 0, 1]], dtype=np.float32)
+
+        # Read first frame
+        self.read_frame()
+        print("\r" + ' ' * 20 + "\r", end='')
+
+    def read_frame(self):
+        self._read_image()
+
+    def _read_image(self):
+        for i in range(1, self.num_frames + 1):
+            zeroes = "0" * 3
+            im_name = "{0}/Vesta_seq{1} ({2}).jpg".format(self.image_dir, zeroes, str(i+55))
+            self.images.append(cv2.imread(im_name, flags=0))
+            print("Data loading: {0}%".format(int((i + self.num_frames) / (self.num_frames * 2 - 1) * 100)), end="\r")
+
+
 def get_projection_matrices():
     """Frame Calibration Holder
     3x4    p_left, p_right      Camera P matrix. Contains extrinsic and intrinsic parameters.

@@ -3,6 +3,7 @@ import cv2
 from matplotlib import pyplot as plt
 from file_management import *
 import math
+import matplotlib.animation as animation
 
 
 def extract_features(image):
@@ -67,6 +68,20 @@ def extract_features_dataset(images, extract_features_function):
     return kp_list, des_list
 
 
+def visualize_features_dataset(images_f, kp_list_f):
+    fig = plt.figure(figsize=(8, 6), dpi=100)
+    ims = []
+    for ind, image in enumerate(images_f):
+        display = cv2.drawKeypoints(image, kp_list_f[ind], None, color=(0, 255, 0), flags=0)
+        im = plt.imshow(display, animated=True)
+        ims.append([im])
+
+    ani = animation.ArtistAnimation(fig, ims, interval=50, blit=True,
+                                    repeat_delay=1000)
+    plt.show()
+    return ani
+
+
 def match_features(des1, des2):
     """
     Match features from two images
@@ -101,19 +116,17 @@ def filter_matches_distance(match, dist_threshold):
     dist_threshold -- maximum allowed relative distance between the best matches, (0.0, 1.0)
 
     Returns:
-    filtered_match -- list of good matches, satisfying the distance threshold
+    good_matches -- list of good matches, satisfying the distance threshold
     """
-    filtered_match = []
-
-    # ratio test as per Lowe's paper
+    good_matches = []
     try:
         for m, n in match:
             if m.distance < dist_threshold * n.distance:
-                filtered_match.append(m)
+                good_matches.append(m)
     except ValueError:
-        print("Skip filtering match.")
+        print("Empty match for filtering.")
 
-    return filtered_match
+    return good_matches
 
 
 def visualize_matches(image1, kp1, image2, kp2, match):
@@ -130,7 +143,21 @@ def visualize_matches(image1, kp1, image2, kp2, match):
     Returns:
     image_matches -- an image showing the corresponding matches on both image1 and image2 or None if you don't use this function
     """
-    image_matches = cv2.drawMatches(image1,kp1,image2,kp2,match,None,flags=2)
+    img_matches = np.empty((max(image1.shape[0], image2.shape[0]), image1.shape[1] + image2.shape[1], 3), dtype=np.uint8)
+    try:
+        image_matches = cv2.drawMatches(image1, kp1, image2, kp2, match, img_matches,
+                       flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+    except Exception:
+        match_new = []
+        for ind in range(0, len(match)):
+            try:
+                m, n = match[i]
+                match_new.append(m)
+            except ValueError:
+                print("Empty match")
+        image_matches = cv2.drawMatches(image1, kp1, image2, kp2, match_new, img_matches,
+                                        flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+
     plt.figure(figsize=(16, 6), dpi=100)
     plt.imshow(image_matches)
     return image_matches
@@ -149,13 +176,8 @@ def match_features_dataset(des_list, match_features):
                Each matches[i] is a list of matched features from images i and i + 1
 
     """
-    matches = []
-    for i in range(0, len(des_list) - 1):
-        des1 = des_list[i]
-        des2 = des_list[i + 1]
+    matches = [match_features(des_list[i], des_list[i + 1]) for i in range((len(des_list) - 1))]
 
-        match = match_features(des1, des2)
-        matches.append(match)
     return matches
 
 
@@ -174,11 +196,7 @@ def filter_matches_dataset(filter_matches_distance, matches, dist_threshold):
                         Each matches[i] is a list of good matches, satisfying the distance threshold
 
     """
-    filtered_matches = []
-
-    for i, match in enumerate(matches):
-        match = filter_matches_distance(match, dist_threshold)
-        filtered_matches.append(match)
+    filtered_matches = [filter_matches_distance(mn, dist_threshold) for mn in matches]
 
     return filtered_matches
 
@@ -213,18 +231,17 @@ if __name__ == "__main__":
     des2 = des_list[i+1]
     kp1 = kp_list[i]
     kp2 = kp_list[i+1]
-    match = match_features(des1, des2)
-    print("Number of features matched in frames {0} and {1}: {2}".format(i, i+1, len(match)))
+    match_unf = match_features(des1, des2)
+    print("Number of features matched in frames {0} and {1}: {2}".format(i, i+1, len(match_unf)))
 
     # Visualize n first matches, set n to None to view all matches
     # set filtering to True if using match filtering, otherwise set to False
-    n = 20
     dist_threshold = 0.6
-    match = filter_matches_distance(match, dist_threshold)
+    filtered_match = filter_matches_distance(match_unf, dist_threshold)
+    image_matches = visualize_matches(image, kp1, dataset_handler.images[i+1], kp2, match_unf[:20])
     print("Number of features matched in frames {0} and {1} after filtering by distance: {2}".format(i, i + 1, len(
-        match)))
+        filtered_match )))
 
-    image_matches = visualize_matches(image, kp1, dataset_handler.images[i+1], kp2, match[:n])
     unfiltered_matches = match_features_dataset(des_list, match_features)
     matches = filter_matches_dataset(filter_matches_distance, unfiltered_matches, dist_threshold)
     print("Number of filtered matches in frames {0} and {1}: {2}".format(i, i + 1, len(matches[i])))

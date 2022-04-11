@@ -136,13 +136,23 @@ def estimate_motion(match_feat, kp_1, kp_2, k):
     tvec = np.zeros((3, 1))
     image1_points = []
     image2_points = []
+    if len(match_feat) > 3:
+        for points in match_feat:
+            try:
+                image1_points.append(np.array(kp_1[points.queryIdx].pt))
+                image2_points.append(np.array(kp_2[points.trainIdx].pt))
+            except AttributeError:
+                try:
+                    image1_points.append(np.array(kp_1[points[0].queryIdx].pt))
+                    image2_points.append(np.array(kp_2[points[0].trainIdx].pt))
+                except IndexError:
+                    print("Empty match.")
 
-    for points in match_feat:
-        image1_points.append(np.array(kp_1[points.queryIdx].pt))
-        image2_points.append(np.array(kp_2[points.trainIdx].pt))
-    image1_points, image2_points = np.array(image1_points, np.float32), np.array(image2_points, np.float32)
-    E, mask = cv2.findEssentialMat(image1_points, image2_points, k)
-    points, rmat, tvec, mask_pose = cv2.recoverPose(E, image1_points, image2_points)
+        image1_points, image2_points = np.array(image1_points, np.float32), np.array(image2_points, np.float32)
+        E, mask = cv2.findEssentialMat(image1_points, image2_points, k)
+        points, rmat, tvec, mask_pose = cv2.recoverPose(E, image1_points, image2_points)
+    else:
+        print("Not enough points in match list for estimating motion.")
 
     return rmat, tvec, image1_points, image2_points
 
@@ -168,6 +178,111 @@ def visualize_camera_movement(image1, image1_points, image2, image2_points, is_s
         return image2
     else:
         return image1
+
+
+def visualize_camera_movement_animation(images_f, matches_f, kp_list_f, k):
+    fig = plt.figure(figsize=(8, 6), dpi=100)
+    ims = []
+    for i in range(len(matches_f)):
+        match = matches_f[i]
+        kp1 = kp_list_f[i]
+        kp2 = kp_list_f[i+1]
+        rmat, tvec, image_1_points, image_2_points = estimate_motion(match, kp1, kp2, k)
+        image1 = images_f[i]
+        image2 = images_f[i+1]
+        image_move = visualize_camera_movement(image1, image_1_points, image2, image_2_points)
+        im = plt.imshow(cv2.cvtColor(image_move, cv2.COLOR_RGB2BGR), animated=True)
+        ims.append([im])
+
+    ani = animation.ArtistAnimation(fig, ims, interval=50, blit=True,
+                                    repeat_delay=1000)
+    return ani
+
+
+def estimate_trajectory(estimate_motion, matches_f, kp_list, k, depth_maps=[]):
+    """
+    Estimate complete camera trajectory from subsequent image pairs
+
+    Arguments:
+    estimate_motion -- a function which estimates camera motion from a pair of subsequent image frames
+    matches -- list of matches for each subsequent image pair in the dataset.
+               Each matches[i] is a list of matched features from images i and i + 1
+    kp_list -- a list of keypoints for each image in the dataset
+    k -- camera calibration matrix
+
+    Optional arguments:
+    depth_maps -- a list of depth maps for each frame. This argument is not needed if you use Essential Matrix Decomposition
+
+    Returns:
+    trajectory -- a 3xlen numpy array of the camera locations, where len is the lenght of the list of images and
+                  trajectory[:, i] is a 3x1 numpy vector, such as:
+
+                  trajectory[:, i][0] - is X coordinate of the i-th location
+                  trajectory[:, i][1] - is Y coordinate of the i-th location
+                  trajectory[:, i][2] - is Z coordinate of the i-th location
+
+                  * Consider that the origin of your trajectory cordinate system is located at the camera position
+                  when the first image (the one with index 0) was taken. The first camera location (index = 0) is geven
+                  at the initialization of this function
+
+    """
+
+    # Create variables for computation
+    trajectory = np.zeros((3, len(matches_f) + 1))
+    robot_pose = np.zeros((len(matches_f) + 1, 4, 4))
+
+    # Initialize camera pose
+    robot_pose[0] = np.eye(4)
+
+    # Iterate through the matched features
+    for i in range(len(matches_f)):
+        # Estimate camera motion between a pair of images
+        rmat, tvec, image1_points, image2_points = estimate_motion(matches_f[i], kp_list[i], kp_list[i + 1], k)
+
+        # Determine current pose from rotation and translation matrices
+        current_pose = np.eye(4)
+        current_pose[0:3, 0:3] = rmat
+        current_pose[0:3, 3] = tvec.T
+
+        # Build the robot's pose from the initial position by multiplying previous and current poses
+        robot_pose[i + 1] = robot_pose[i] @ np.linalg.inv(current_pose)
+
+        # Calculate current camera position from origin
+        position = robot_pose[i + 1] @ np.array([0., 0., 0., 1.])
+
+        # Build trajectory
+        trajectory[:, i + 1] = position[0:3]
+
+    return trajectory
+
+
+def set_axes_equal(ax):
+    '''Make axes of 3D plot have equal scale so that spheres appear as spheres,
+    cubes as cubes, etc..  This is one possible solution to Matplotlib's
+    ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
+
+    Input
+      ax: a matplotlib axis, e.g., as output from plt.gca().
+    '''
+
+    x_limits = ax.get_xlim3d()
+    y_limits = ax.get_ylim3d()
+    z_limits = ax.get_zlim3d()
+
+    x_range = abs(x_limits[1] - x_limits[0])
+    x_middle = np.mean(x_limits)
+    y_range = abs(y_limits[1] - y_limits[0])
+    y_middle = np.mean(y_limits)
+    z_range = abs(z_limits[1] - z_limits[0])
+    z_middle = np.mean(z_limits)
+
+    # The plot bounding box is a sphere in the sense of the infinity
+    # norm, hence I call half the max range the plot radius.
+    plot_radius = 0.5*max([x_range, y_range, z_range])
+
+    ax.set_xlim3d([x_middle - plot_radius, x_middle + plot_radius])
+    ax.set_ylim3d([y_middle - plot_radius, y_middle + plot_radius])
+    ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
 
 
 if __name__ == "__main__":
@@ -196,5 +311,18 @@ if __name__ == "__main__":
     image_move = visualize_camera_movement(image1, image_1_points, image2, image_2_points)
     plt.figure(figsize=(16, 12), dpi=100)
     plt.imshow(image_move)
+
+    trajectory = estimate_trajectory(estimate_motion, matches, kp_list, k)
+    fig = plt.figure()
+    ax = plt.axes(projection='3d')
+
+    ax.plot3D(trajectory[0,:], trajectory[2,:], trajectory[1,:], 'gray')
+    ax.grid()
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+    ax.set_zlabel("z")
+    set_axes_equal(ax)
+
+    anim = visualize_camera_movement_animation(images, matches, kp_list, dataset_handler.k)
 
     plt.show()
