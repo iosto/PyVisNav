@@ -1,6 +1,6 @@
 <div id="top"></div>
 
-![](name-of-giphy.gif)
+![](images/Ceres_keypoints.gif)
 
 
 <!-- ABOUT THE PROJECT -->
