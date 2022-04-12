@@ -101,7 +101,7 @@ class DawnDatasetHandler:
 
         # Set up paths
         root_dir_path = os.path.dirname(os.path.realpath(__file__))
-        self.image_dir = os.path.join(root_dir_path, 'images/asteroid/Vesta')
+        self.image_dir = os.path.join(root_dir_path, 'images/asteroid/Ceres')
 
         # Set up data holders
         self.images = []

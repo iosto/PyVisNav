@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 from file_management import *
 from keypoints import *
 import math
-
+import time
 
 def visualize_trajectory(trajectory):
     # Unpack X Y Z each trajectory point
