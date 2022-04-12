@@ -1,5 +1,9 @@
 <div id="top"></div>
 
+Inline-style: 
+![alt text](https://github.com/iosto/SpaceMissionDesign/blob/main/images/Ceres_keypoints.gif "Ceres keypoints tracking from Dawn Framing Camera")
+
+
 <!-- ABOUT THE PROJECT -->
 ## PyVisNav
 
